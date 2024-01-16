@@ -2,12 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"syscall"
 
 	"github.com/codeclysm/extract"
@@ -16,31 +12,22 @@ import (
 func main() {
 	switch os.Args[1] {
 	case "run":
-		image := os.Args[2]
-		tar := fmt.Sprintf("./assets/%s.tar.gz", image)
-
-		if _, err := os.Stat(tar); errors.Is(err, os.ErrNotExist) {
-			panic(err)
+		os.Mkdir("./assets/tmp/", 0750)
+		defer os.RemoveAll("./assets/tmp/")
+		cmd := exec.Command("/proc/self/exe", append([]string{"chroot"}, os.Args[2:]...)...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
+			Unshareflags: syscall.CLONE_NEWNS,
 		}
-
-		cmd := ""
-		if len(os.Args) > 3 {
-			cmd = os.Args[3]
-		} else {
-			buf, err := os.ReadFile(fmt.Sprintf("./assets/%s-cmd", image))
-			if err != nil {
-				panic(err)
-			}
-			cmd = string(buf)
-		}
-
-		dir := createTempDir(tar)
-		defer os.RemoveAll(dir)
-		must(unTar(tar, dir))
-		chroot(dir, cmd)
+		must(cmd.Run())
 	case "pull":
 		image := os.Args[2]
 		pullImage(image)
+	case "chroot":
+		chroot()
 	default:
 		panic("what?")
 	}
@@ -55,59 +42,31 @@ func pullImage(image string) {
 	must(cmd.Run())
 }
 
-func chroot(root string, call string) {
-	//Hold onto old root
-	oldrootHandle, err := os.Open("/")
-	if err != nil {
-		panic(err)
-	}
-	defer oldrootHandle.Close()
+func chroot() {
 
-	//Create command
-	fmt.Printf("Running %s in %s\n", call, root)
-	cmd := exec.Command(call)
+	func() error {
+		r, err := os.Open("/home/coder/gocontainerrt/assets/alpine.tar.gz")
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+		ctx := context.Background()
+		return extract.Archive(ctx, r, "./assets/tmp/", nil)
+	}()
+	must(syscall.Chroot("./assets/tmp"))
+	must(syscall.Chdir("/"))
+	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	//New Root time
-	must(syscall.Chdir(root))
-	must(syscall.Chroot(root))
+	must(syscall.Sethostname([]byte("mycontainer")))
+	must(syscall.Mount("proc", "proc", "proc", 0, ""))
 
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println(err)
-	}
+	must(cmd.Run())
 
-	//Go back to old root
-	//So that we can clean up the temp dir
-	must(syscall.Fchdir(int(oldrootHandle.Fd())))
-	must(syscall.Chroot("."))
+	must(syscall.Unmount("proc", 0))
 
-}
-
-func createTempDir(name string) string {
-	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
-
-	prefix := nonAlphanumericRegex.ReplaceAllString(name, "_")
-	dir, err := os.MkdirTemp("", prefix)
-	if err != nil {
-		log.Fatal(err)
-	}
-	//fmt.Printf("created %s\n", dir)
-	return dir
-}
-
-func unTar(source string, dst string) error {
-	// fmt.Printf("Extracting %s %s\n", source, dst)
-	r, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	ctx := context.Background()
-	return extract.Archive(ctx, r, dst, nil)
 }
 
 func must(err error) {
