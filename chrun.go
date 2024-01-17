@@ -5,9 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-	"github.com/containerd/cgroups/v3/cgroup2"
-	specs "github.com/opencontainers/runtime-spec/specs-go"
+    "path/filepath"
 	"github.com/codeclysm/extract"
+	"io/ioutil"
+	"strconv"
 	"fmt"
 )
 
@@ -57,7 +58,7 @@ func chroot() {
 	}()
 	must(syscall.Chroot("./assets/tmp"))
 	must(syscall.Chdir("/"))
-	cg()
+	//cg()
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -74,20 +75,11 @@ func chroot() {
 
 func cg() {
 
-	var cgroupV2 bool
-    if cgroups.Mode() == cgroups.Unified {
-	cgroupV2 = true
-    }
-	fmt.Println(cgroupV2)
-	res := cgroup2.Resources{}
-	// dummy PID of -1 is used for creating a "general slice" to be used as a parent cgroup.
-	// see https://github.com/containerd/cgroups/blob/1df78138f1e1e6ee593db155c6b369466f577651/v2/manager.go#L732-L735
-	m, err := cgroup2.NewSystemd("/", "my-cgroup-abc.slice", -1, &res)
-	//m, err := cgroup2.LoadSystemd("/", "my-cgroup-abc.slice")
-	// https://www.kernel.org/doc/html/v5.0/admin-guide/cgroup-v2.html#threads
-	cgType, err := m.GetType()
-	fmt.Println(cgType)
-	defer m.DeleteSystemd()
+	pid := os.Getpid()
+	fmt.Println(pid)
+	cgdir := "/sys/fs/cgroup"
+	procsFile := filepath.Join(cgdir, "cgroup.procs")
+	ioutil.WriteFile(procsFile, []byte(strconv.Itoa(pid)),0700)
 
 }
 
