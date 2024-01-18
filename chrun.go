@@ -7,7 +7,6 @@ import (
 	"syscall"
     "path/filepath"
 	"github.com/codeclysm/extract"
-	//"github.com/containerd/cgroups/v3/cgroup2"
 	"io/ioutil"
 	"strconv"
 	"fmt"
@@ -18,13 +17,7 @@ func main() {
 	case "run":
 		os.Mkdir("./assets/tmp/", 0750)
 		defer os.RemoveAll("./assets/tmp/")
-	    fmt.Println(os.Getpid())
-		cgdir := "/sys/fs/cgroup"
-		newCgroupv2 := filepath.Join(cgdir, "hi")
-		must(os.MkdirAll(newCgroupv2, 0755))
-		defer os.RemoveAll(newCgroupv2)
-		procsFile := filepath.Join(newCgroupv2, "cgroup.procs")
-		must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(os.Getpid())),0700))
+        cg()
 		cmd := exec.Command("/proc/self/exe", append([]string{"chroot"}, os.Args[2:]...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -64,7 +57,6 @@ func chroot() {
 		ctx := context.Background()
 		return extract.Archive(ctx, r, "./assets/tmp/", nil)
 	}()
-    cg()
 	must(syscall.Chroot("./assets/tmp"))
 	must(syscall.Chdir("/"))
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
@@ -84,14 +76,14 @@ func chroot() {
 
 func cg() {
 
-    // first we need to create a child group of Root
-	// then enable cpu, mem and pid controllers
-	pid := os.Getpid()
-	fmt.Println(pid)
-	//ioutil.WriteFile(filepath.Join(newCgroupv2, "cgroup.subtree_control"),[]byte("+cpu +memory +pids"), 0644)
-	//taskFolder := filepath.Join(newCgroupv2, "tasks")
-	//procsFile := filepath.Join(newCgroupv2, "cgroup.procs")
-	//must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(pid)),0700))
+
+	fmt.Println(os.Getpid())
+	cgdir := "/sys/fs/cgroup"
+	newCgroupv2 := filepath.Join(cgdir, "hi")
+	must(os.MkdirAll(newCgroupv2, 0755))
+	defer os.RemoveAll(newCgroupv2)
+	procsFile := filepath.Join(newCgroupv2, "cgroup.procs")
+	must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(os.Getpid())),0700))
 
 }
 
