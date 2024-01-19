@@ -79,11 +79,15 @@ func cg() {
 
 	fmt.Println(os.Getpid())
 	cgdir := "/sys/fs/cgroup"
-	newCgroupv2 := filepath.Join(cgdir, "hi")
+	newCgroupv2 := filepath.Join(cgdir, "hiii")
 	must(os.MkdirAll(newCgroupv2, 0755))
 	defer os.RemoveAll(newCgroupv2)
 	procsFile := filepath.Join(newCgroupv2, "cgroup.procs")
-	must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(os.Getpid())),0700))
+	must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(os.Getpid())),0644))
+	//now we limit the number of threads in this container-process to 2
+	// test in a shell if you can fork more than two times
+	pidFile := filepath.Join(newCgroupv2, "pids.max")
+	must(ioutil.WriteFile(pidFile, []byte(strconv.Itoa(11)), 0644))
 
 }
 
