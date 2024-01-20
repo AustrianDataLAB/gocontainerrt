@@ -23,8 +23,26 @@ func main() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
-			Unshareflags: syscall.CLONE_NEWNS,
+			Cloneflags: syscall.CLONE_NEWNS |
+				syscall.CLONE_NEWUTS |
+				syscall.CLONE_NEWIPC |
+				syscall.CLONE_NEWPID |
+				syscall.CLONE_NEWNET |
+				syscall.CLONE_NEWUSER,
+			UidMappings: []syscall.SysProcIDMap{
+				{
+					ContainerID: 0,
+					HostID:      os.Getuid(),
+					Size:        1,
+				},
+			},
+			GidMappings: []syscall.SysProcIDMap{
+				{
+					ContainerID: 0,
+					HostID:      os.Getgid(),
+					Size:        1,
+				},
+			},
 		}
 		must(cmd.Run())
 	case "pull":
@@ -79,15 +97,15 @@ func cg() {
 
 	fmt.Println(os.Getpid())
 	cgdir := "/sys/fs/cgroup"
-	newCgroupv2 := filepath.Join(cgdir, "hiii")
+	newCgroupv2 := filepath.Join(cgdir, "ns")
 	must(os.MkdirAll(newCgroupv2, 0755))
 	defer os.RemoveAll(newCgroupv2)
 	procsFile := filepath.Join(newCgroupv2, "cgroup.procs")
 	must(ioutil.WriteFile(procsFile, []byte(strconv.Itoa(os.Getpid())),0644))
 	//now we limit the number of threads in this container-process to 2
 	// test in a shell if you can fork more than two times
-	pidFile := filepath.Join(newCgroupv2, "pids.max")
-	must(ioutil.WriteFile(pidFile, []byte(strconv.Itoa(11)), 0644))
+	//pidFile := filepath.Join(newCgroupv2, "pids.max")
+	//must(ioutil.WriteFile(pidFile, []byte(strconv.Itoa(11)), 0644))
 
 }
 
