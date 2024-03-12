@@ -45,7 +45,7 @@ func pullImage(image string) {
 func chroot() {
 
 	func() error {
-		r, err := os.Open("/home/coder/gocontainerrt/assets/alpine.tar.gz")
+		r, err := os.Open("./assets/alpine.tar.gz")
 		if err != nil {
 			return err
 		}
